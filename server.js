@@ -367,12 +367,10 @@ function _rewriteHtml(html, finalUrl) {
     out = `<base href="${finalUrl}">` + out;
   }
 
-  // 禁止表单跳转
-  out = out.replace(/<form(\s[^>]*)?>/gi, (m, attrs) => `<form${attrs||''} onsubmit="return false;">`);
-
-  // 注入点击劫持脚本（页内链接 → 内置浏览器导航）
+  // 注入点击劫持脚本（页内链接 + 表单提交 → 内置浏览器导航）
   const injectScript = `<script>(function(){
 var B=${JSON.stringify(finalUrl)};
+/* 1. 拦截 <a> 链接点击 */
 document.addEventListener('click',function(e){
   var a=e.target.closest('a');
   if(!a)return;
@@ -381,6 +379,26 @@ document.addEventListener('click',function(e){
   e.preventDefault();
   try{var u=new URL(h,B).href;}catch(x){return;}
   window.parent.postMessage({type:'browse-navigate',url:u},'*');
+},true);
+/* 2. 拦截表单提交（GET/POST → 构建目标 URL 传给父窗口） */
+document.addEventListener('submit',function(e){
+  var form=e.target;
+  e.preventDefault();
+  var action=form.getAttribute('action')||B;
+  var method=(form.getAttribute('method')||'get').toLowerCase();
+  var base;
+  try{base=new URL(action,B).href;}catch(x){base=B;}
+  if(method==='get'){
+    var fd=new FormData(form);
+    var params=[];
+    fd.forEach(function(v,k){params.push(encodeURIComponent(k)+'='+encodeURIComponent(v));});
+    var sep=base.includes('?')?'&':'?';
+    var target=params.length?base+sep+params.join('&'):base;
+    window.parent.postMessage({type:'browse-navigate',url:target},'*');
+  } else {
+    /* POST 表单：直接导航到 action URL（搜索引擎大多是 GET，POST 降级为直接访问） */
+    window.parent.postMessage({type:'browse-navigate',url:base},'*');
+  }
 },true);
 })();</script>`;
 

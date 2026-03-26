@@ -1847,8 +1847,21 @@ function _browShowIframe(frameUrl, finalUrl, meta) {
 }
 
 async function _browLoad(url) {
-  if (_browLoading) return;
+  // 如果正在加载同一个URL，跳过；不同URL则强制中断旧请求
+  if (_browLoading) {
+    _browLoading = false; // 强制中断旧加载，允许新请求
+  }
   _browLoading = true;
+  // 30秒超时兜底：防止状态永久锁死
+  const _thisLoadId = (_browLoad._id = (_browLoad._id || 0) + 1);
+  setTimeout(() => {
+    if (_browLoad._id === _thisLoadId && _browLoading) {
+      _browLoading = false;
+      const goBtn = document.getElementById('brow-go-btn');
+      if (goBtn) { goBtn.textContent = '前往'; goBtn.onclick = browserGo; goBtn.disabled = false; }
+      _browProgressDone();
+    }
+  }, 30000);
 
   const goBtn = document.getElementById('brow-go-btn');
   goBtn.textContent = '⏹ 停止';
