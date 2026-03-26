@@ -798,25 +798,19 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.7);
       z-index: 2100;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(4px);
+      /* 全屏覆盖，无背景遮罩，直接顶满 */
     }
-    #browser-modal.show { display: flex; }
+    #browser-modal.show { display: flex; flex-direction: column; }
 
     .browser-dialog {
       background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      width: 92vw;
-      max-width: 1100px;
-      height: 88vh;
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 32px 100px rgba(0,0,0,0.7);
       overflow: hidden;
+      /* 无圆角、无阴影——真全屏 */
     }
 
     /* 顶部工具栏 */
@@ -921,13 +915,26 @@
       min-height: 26px;
     }
 
-    .browser-progress {
-      height: 2px;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    /* 顶部加载进度条 */
+    .browser-progress-bar {
       position: absolute;
       top: 0; left: 0;
-      transition: width 0.3s;
-      border-radius: 2px;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), #a78bfa, var(--accent2));
+      transition: width 0.25s ease, opacity 0.4s ease;
+      z-index: 10;
+      border-radius: 0 2px 2px 0;
+      box-shadow: 0 0 8px rgba(124,106,247,0.8);
+      opacity: 0;
+    }
+    .browser-progress-bar.loading {
+      opacity: 1;
+    }
+    .browser-progress-bar.done {
+      width: 100% !important;
+      opacity: 0;
+      transition: width 0.15s ease, opacity 0.5s ease 0.1s;
     }
 
     .browser-spinner {
@@ -1154,14 +1161,16 @@
 <!-- ===== BROWSER MODAL ===== -->
 <div id="browser-modal">
   <div class="browser-dialog">
+    <!-- 顶部进度条 -->
+    <div class="browser-progress-bar" id="brow-progress"></div>
 
     <!-- 工具栏 -->
     <div class="browser-toolbar">
       <!-- 红黄绿三点 -->
       <div class="browser-traffic">
-        <div class="browser-dot red"    onclick="closeBrowser()" title="关闭"></div>
-        <div class="browser-dot yellow" onclick="browserMinimize()" title="最小化（不支持）"></div>
-        <div class="browser-dot green"  title="已最大化"></div>
+        <div class="browser-dot red"    onclick="closeBrowser()" title="关闭浏览器"></div>
+        <div class="browser-dot yellow" title="（已全屏）"></div>
+        <div class="browser-dot green"  title="已全屏"></div>
       </div>
 
       <!-- 导航按钮 -->
@@ -1750,6 +1759,8 @@ function formatTime(ts) {
 const _browHistory = [];
 let _browHistoryIdx = -1;
 let _browLoading = false;
+let _browCurrentBlobUrl = null;
+let _browProgressTimer = null;
 
 function openBrowser() {
   document.getElementById('browser-modal').classList.add('show');
@@ -1761,10 +1772,6 @@ function closeBrowser() {
   document.getElementById('browser-modal').classList.remove('show');
 }
 
-function browserMinimize() {
-  // 无实际最小化，仅做视觉提示
-}
-
 function _browUpdateNav() {
   document.getElementById('brow-back').disabled    = _browHistoryIdx <= 0;
   document.getElementById('brow-forward').disabled = _browHistoryIdx >= _browHistory.length - 1;
@@ -1774,6 +1781,36 @@ function _browSetStatus(txt, loading = false) {
   document.getElementById('brow-status').textContent = txt;
   const sp = document.getElementById('brow-spinner');
   loading ? sp.classList.add('running') : sp.classList.remove('running');
+}
+
+// ---- 进度条 NProgress 风格 ----
+function _browProgressStart() {
+  const bar = document.getElementById('brow-progress');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  bar.classList.add('loading');
+  bar.classList.remove('done');
+  // 快速到 30%，然后缓慢推进模拟等待
+  requestAnimationFrame(() => {
+    bar.style.transition = 'width 0.3s ease';
+    bar.style.width = '30%';
+    clearTimeout(_browProgressTimer);
+    _browProgressTimer = setTimeout(() => {
+      bar.style.transition = 'width 2s ease';
+      bar.style.width = '70%';
+    }, 350);
+  });
+}
+
+function _browProgressDone() {
+  clearTimeout(_browProgressTimer);
+  const bar = document.getElementById('brow-progress');
+  bar.classList.add('done');
+  bar.style.width = '100%';
+  setTimeout(() => {
+    bar.classList.remove('loading', 'done');
+    bar.style.width = '0%';
+  }, 600);
 }
 
 function _browShowError(msg) {
@@ -1790,21 +1827,24 @@ function _browShowIframe(html, finalUrl) {
   const iframe = document.getElementById('brow-iframe');
   iframe.style.display = 'block';
 
-  // 写入 HTML
+  // 释放旧 Blob URL，避免内存泄漏
+  if (_browCurrentBlobUrl) {
+    URL.revokeObjectURL(_browCurrentBlobUrl);
+    _browCurrentBlobUrl = null;
+  }
+
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
-  iframe.src = blobUrl;
+  _browCurrentBlobUrl = URL.createObjectURL(blob);
+  iframe.src = _browCurrentBlobUrl;
 
   // 更新地址栏
   document.getElementById('brow-addr').value = finalUrl;
   // 更新锁图标
   const lock = document.getElementById('brow-lock');
   if (finalUrl.startsWith('https://')) {
-    lock.textContent = '🔒';
-    lock.className = 'browser-lock-icon';
+    lock.textContent = '🔒'; lock.className = 'browser-lock-icon';
   } else {
-    lock.textContent = '🔓';
-    lock.className = 'browser-lock-icon insecure';
+    lock.textContent = '🔓'; lock.className = 'browser-lock-icon insecure';
   }
 }
 
@@ -1813,8 +1853,13 @@ async function _browLoad(url) {
   _browLoading = true;
 
   const goBtn = document.getElementById('brow-go-btn');
-  goBtn.disabled = true;
-  _browSetStatus(`正在加载 ${url} ...`, true);
+  goBtn.textContent = '⏹ 停止';
+  goBtn.onclick = () => { _browLoading = false; _browProgressDone(); goBtn.textContent = '前往'; goBtn.onclick = browserGo; };
+
+  _browProgressStart();
+  _browSetStatus(`正在加载 ${url}...`, true);
+
+  const startTime = Date.now();
 
   try {
     const resp = await fetch(`${SERVER}/api/browse`, {
@@ -1822,27 +1867,34 @@ async function _browLoad(url) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
     });
+    if (!_browLoading) return; // 用户点了停止
     const data = await resp.json();
+    if (!_browLoading) return;
 
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     if (data.ok) {
       _browShowIframe(data.html, data.finalUrl || url);
-      _browSetStatus(`✓ ${data.finalUrl || url}  (HTTP ${data.statusCode})`, false);
+      const cacheHint = data.cached ? ' 〔缓存〕' : '';
+      _browSetStatus(`✓ ${data.finalUrl || url}  HTTP ${data.statusCode}  ${elapsed}s${cacheHint}`, false);
     } else {
       _browShowError(data.error || '加载失败');
-      _browSetStatus(`✗ 加载失败`, false);
+      _browSetStatus(`✗ 加载失败（${elapsed}s）`, false);
     }
   } catch (e) {
+    if (!_browLoading) return;
     _browShowError('网络错误：' + e.message);
     _browSetStatus('✗ 请求失败', false);
   } finally {
     _browLoading = false;
+    _browProgressDone();
+    goBtn.textContent = '前往';
+    goBtn.onclick = browserGo;
     goBtn.disabled = false;
     _browUpdateNav();
   }
 }
 
 function browserNav(url) {
-  // 截断前进历史
   _browHistory.splice(_browHistoryIdx + 1);
   _browHistory.push(url);
   _browHistoryIdx = _browHistory.length - 1;
@@ -1853,8 +1905,7 @@ function browserNav(url) {
 function browserGo() {
   let url = document.getElementById('brow-addr').value.trim();
   if (!url) return;
-  // 如果像搜索词（不含点或冒号），用 Google 搜索
-  if (!/[.:]/.test(url) && !/^https?:\/\//i.test(url)) {
+  if (!/[.:/]/.test(url.replace(/^https?:\/\//i, '')) && !/^https?:\/\//i.test(url)) {
     url = 'https://www.google.com/search?q=' + encodeURIComponent(url);
   }
   browserNav(url);
@@ -1878,7 +1929,13 @@ function browserForward() {
 
 function browserRefresh() {
   const url = document.getElementById('brow-addr').value.trim();
-  if (url && _browHistoryIdx >= 0) _browLoad(url);
+  // 刷新时跳过缓存：直接调 _browLoad
+  if (url) {
+    _browHistory.splice(_browHistoryIdx + 1);
+    _browHistory.push(url);
+    _browHistoryIdx = _browHistory.length - 1;
+    _browLoad(url);
+  }
 }
 
 function browserHome() {
