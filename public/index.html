@@ -372,17 +372,32 @@
       display: flex;
       align-items: flex-end;
       gap: 8px;
+      max-width: 100%;
     }
 
     .msg-row.me { flex-direction: row-reverse; }
 
+    .msg-row .msg-content-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      max-width: 70%;
+    }
+
+    .msg-row.me .msg-content-wrap {
+      align-items: flex-end;
+    }
+
     .msg-bubble {
       max-width: 60%;
+      width: fit-content;
       padding: 10px 14px;
       border-radius: 18px;
       font-size: 14px;
       line-height: 1.5;
       word-break: break-word;
+      word-wrap: break-word;
+      white-space: pre-wrap;
       position: relative;
     }
 
@@ -860,6 +875,7 @@ function filterUsers() {
 async function openChat(userId, username) {
   currentChat = { id: userId, username };
   unread[userId] = 0;
+  updateTitleBadge();
   document.getElementById('chat-placeholder').style.display = 'none';
   const cw = document.getElementById('chat-window');
   cw.style.display = 'flex';
@@ -906,12 +922,12 @@ function renderMessages() {
     const isImg = m.content.startsWith('http') && /\.(jpg|jpeg|png|gif|webp)/i.test(m.content);
     const bubbleContent = isImg
       ? `<img src="${escHtml(m.content)}" onclick="showImg('${escHtml(m.content)}')" />`
-      : escHtml(m.content).replace(/\n/g, '<br>');
+      : escHtml(m.content);
     return `
       ${divider}
       <div class="msg-row ${isMe?'me':'other'}">
         ${!isMe?`<div class="avatar sm">${m.from_username?m.from_username[0].toUpperCase():'?'}</div>`:''}
-        <div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'}">
+        <div class="msg-content-wrap">
           ${!isMe?`<div class="msg-sender">${escHtml(m.from_username||'')}</div>`:''}
           <div class="msg-bubble">${bubbleContent}</div>
           <div class="msg-time">${timeStr}</div>
@@ -1004,6 +1020,10 @@ function connectWS() {
         renderUserList(document.getElementById('search-input').value);
         // 浏览器通知
         showNotification(data.fromUsername, data.content);
+        // 页面 title 显示未读总数
+        updateTitleBadge();
+        // 提示音
+        playBeep();
       }
     }
 
@@ -1114,6 +1134,29 @@ function requestNotifPerm() {
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
+}
+
+// 更新浏览器 tab 标题上的未读数
+function updateTitleBadge() {
+  const total = Object.values(unread).reduce((a, b) => a + b, 0);
+  document.title = total > 0 ? `(${total}) mychat` : 'mychat - 网页版';
+}
+
+// 新消息提示音（用 AudioContext 生成短促 beep）
+let _audioCtx = null;
+function playBeep() {
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = _audioCtx.createOscillator();
+    const gain = _audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(_audioCtx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, _audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + 0.18);
+    osc.start(_audioCtx.currentTime);
+    osc.stop(_audioCtx.currentTime + 0.18);
+  } catch {}
 }
 
 // ===== TOAST =====
