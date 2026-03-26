@@ -1299,6 +1299,7 @@ let ws = null;
 let users = [];
 let unread = {};     // { userId: count }
 let msgCache = {};   // { userId: [msgs] }
+let _browserOpen = false; // 内置浏览器打开时为 true，挂起所有聊天后台处理
 
 const EMOJIS = ['😀','😂','🥰','😍','🤩','😎','😭','😡','🥺','😱','👍','👎','👏','🙏','🤝','❤️','🔥','✨','🎉','🎊','😏','🤔','😴','🤣','😇','🙄','😤','🤗','🥳','🫡'];
 
@@ -1384,7 +1385,10 @@ function doLogout() {
 }
 
 // ===== USER LIST =====
+let _loadUsersTimer = null;
 async function loadUsers() {
+  // 浏览器模式下跳过网络请求，不调度下一次
+  if (_browserOpen) return;
   try {
     const r = await fetch(`${SERVER}/api/users/${me.id}`, {
       headers: { 'Authorization': `Bearer ${me.token}` }
@@ -1392,10 +1396,15 @@ async function loadUsers() {
     const d = await r.json();
     users = d.users || [];
     renderUserList();
-    // 每30秒刷新一次用户列表
-    setTimeout(loadUsers, 30000);
+    // 每30秒刷新一次用户列表（浏览器打开时不调度）
+    if (!_browserOpen) {
+      _loadUsersTimer = setTimeout(loadUsers, 30000);
+    }
   } catch(e) {
     console.error('loadUsers error:', e);
+    if (!_browserOpen) {
+      _loadUsersTimer = setTimeout(loadUsers, 30000);
+    }
   }
 }
 
@@ -1557,7 +1566,7 @@ function connectWS() {
     try { data = JSON.parse(e.data); } catch { return; }
 
     if (data.type === 'auth_ok') {
-      showToast('已连接到服务器 ✓');
+      if (!_browserOpen) showToast('已连接到服务器 ✓');
       return;
     }
 
@@ -1573,6 +1582,12 @@ function connectWS() {
       };
       if (!msgCache[fromId]) msgCache[fromId] = [];
       msgCache[fromId].push(msg);
+
+      // 浏览器模式：只静默缓存消息和计数，不做任何 UI/通知/音效
+      if (_browserOpen) {
+        unread[fromId] = (unread[fromId] || 0) + 1;
+        return;
+      }
 
       if (currentChat && currentChat.id === fromId) {
         renderMessages();
@@ -1600,6 +1615,8 @@ function connectWS() {
       };
       if (!msgCache[toId]) msgCache[toId] = [];
       msgCache[toId].push(msg);
+      // 浏览器模式下跳过 UI 刷新
+      if (_browserOpen) return;
       if (currentChat && currentChat.id === toId) {
         renderMessages();
       }
@@ -1609,7 +1626,8 @@ function connectWS() {
 
   ws.onclose = () => {
     console.log('WS 断开，', wsReconnectDelay/1000, 's后重连');
-    if (me) {
+    // 浏览器模式下不自动重连（减少后台网络占用）
+    if (me && !_browserOpen) {
       wsReconnectTimer = setTimeout(() => {
         wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, 30000);
         connectWS();
@@ -1762,14 +1780,41 @@ let _browLoading = false;
 let _browCurrentBlobUrl = null;
 let _browProgressTimer = null;
 
+// 内置浏览器打开/关闭（见顶部 STATE 区的 _browserOpen 标志）
 function openBrowser() {
+  _browserOpen = true;
+
+  // 1. 清除用户列表轮询定时器
+  if (_loadUsersTimer) { clearTimeout(_loadUsersTimer); _loadUsersTimer = null; }
+
+  // 2. 断开 WebSocket（释放网络连接，不自动重连）
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.onclose = null; // 临时移除 onclose 回调，避免触发重连
+    ws.close();
+  }
+
   document.getElementById('browser-modal').classList.add('show');
   document.getElementById('brow-addr').focus();
   document.getElementById('brow-addr').select();
 }
 
 function closeBrowser() {
+  _browserOpen = false;
   document.getElementById('browser-modal').classList.remove('show');
+
+  // 1. 恢复 WebSocket 连接
+  wsReconnectDelay = 2000;
+  connectWS();
+
+  // 2. 恢复用户列表轮询（立即刷新一次）
+  loadUsers();
+
+  // 3. 立即更新标题未读数
+  updateTitleBadge();
+
+  // 4. 刷新用户列表 UI（显示浏览器期间积累的未读角标）
+  renderUserList(document.getElementById('search-input').value);
 }
 
 function _browUpdateNav() {
