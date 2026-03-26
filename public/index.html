@@ -792,6 +792,257 @@
       transition: color 0.2s, background 0.2s;
     }
     .ping-icon-btn:hover { color: var(--accent); background: rgba(124,106,247,0.12); }
+
+    /* ===== BROWSER MODAL ===== */
+    #browser-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 2100;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    #browser-modal.show { display: flex; }
+
+    .browser-dialog {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 92vw;
+      max-width: 1100px;
+      height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 32px 100px rgba(0,0,0,0.7);
+      overflow: hidden;
+    }
+
+    /* 顶部工具栏 */
+    .browser-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .browser-traffic {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .browser-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .browser-dot.red   { background: #ff5f57; }
+    .browser-dot.yellow{ background: #febc2e; }
+    .browser-dot.green { background: #28c840; }
+    .browser-dot.red:hover   { background: #ff3b30; }
+    .browser-dot.yellow:hover{ background: #ff9500; }
+    .browser-dot.green:hover { background: #34c759; }
+
+    .browser-nav-btn {
+      background: none;
+      border: none;
+      color: var(--text2);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 7px;
+      border-radius: 7px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .browser-nav-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+    .browser-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .browser-address-bar {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 10px;
+      gap: 6px;
+      transition: border-color 0.2s;
+      min-width: 0;
+    }
+    .browser-address-bar:focus-within { border-color: var(--accent); }
+
+    .browser-lock-icon { font-size: 12px; color: #34c97e; flex-shrink: 0; }
+    .browser-lock-icon.insecure { color: var(--text2); }
+
+    .browser-addr-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Menlo', 'Consolas', monospace;
+      padding: 7px 0;
+      min-width: 0;
+    }
+
+    .browser-go-btn {
+      padding: 5px 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      flex-shrink: 0;
+    }
+    .browser-go-btn:hover { opacity: 0.85; }
+    .browser-go-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* 状态/加载栏 */
+    .browser-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      font-size: 11px;
+      color: var(--text2);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      flex-shrink: 0;
+      min-height: 26px;
+    }
+
+    .browser-progress {
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      position: absolute;
+      top: 0; left: 0;
+      transition: width 0.3s;
+      border-radius: 2px;
+    }
+
+    .browser-spinner {
+      width: 11px; height: 11px;
+      border: 1.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+      flex-shrink: 0;
+    }
+    .browser-spinner.running { display: block; }
+
+    /* 内容区 */
+    .browser-content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .browser-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+
+    .browser-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--text2);
+    }
+
+    .browser-placeholder .big-icon { font-size: 56px; opacity: 0.3; }
+
+    .browser-placeholder p {
+      font-size: 14px;
+      opacity: 0.5;
+      max-width: 320px;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .browser-error-box {
+      display: none;
+      width: 100%;
+      height: 100%;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .browser-error-box.show { display: flex; }
+
+    .browser-error-icon { font-size: 48px; }
+
+    .browser-error-msg {
+      color: var(--text2);
+      font-size: 14px;
+      text-align: center;
+      max-width: 480px;
+      line-height: 1.7;
+      background: rgba(240,92,92,0.08);
+      border: 1px solid rgba(240,92,92,0.2);
+      border-radius: 12px;
+      padding: 14px 18px;
+    }
+
+    /* 浏览器按钮（在 sidebar-header 里） */
+    .browser-icon-btn {
+      background: none;
+      border: none;
+      color: var(--text2);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      font-size: 18px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .browser-icon-btn:hover { color: var(--accent); background: rgba(124,106,247,0.12); }
+
+    /* 快速书签 */
+    .browser-bookmarks {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 14px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .browser-bookmark {
+      padding: 3px 10px;
+      font-size: 11.5px;
+      color: var(--text2);
+      cursor: pointer;
+      border-radius: 4px;
+      white-space: nowrap;
+      transition: all 0.15s;
+      border: none;
+      background: none;
+    }
+    .browser-bookmark:hover {
+      background: rgba(124,106,247,0.12);
+      color: var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -852,6 +1103,7 @@
         <div class="name" id="my-name">--</div>
         <div class="status">● 在线</div>
       </div>
+      <button class="browser-icon-btn" onclick="openBrowser()" title="内置浏览器">🖥️</button>
       <button class="ping-icon-btn" onclick="openPing()" title="网络 Ping 检测">🌐</button>
       <button class="logout-btn" onclick="doLogout()" title="退出登录">⏻</button>
     </div>
@@ -896,6 +1148,80 @@
         <button class="send-btn" onclick="sendMessage()" title="发送">➤</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ===== BROWSER MODAL ===== -->
+<div id="browser-modal">
+  <div class="browser-dialog">
+
+    <!-- 工具栏 -->
+    <div class="browser-toolbar">
+      <!-- 红黄绿三点 -->
+      <div class="browser-traffic">
+        <div class="browser-dot red"    onclick="closeBrowser()" title="关闭"></div>
+        <div class="browser-dot yellow" onclick="browserMinimize()" title="最小化（不支持）"></div>
+        <div class="browser-dot green"  title="已最大化"></div>
+      </div>
+
+      <!-- 导航按钮 -->
+      <button class="browser-nav-btn" id="brow-back"    onclick="browserBack()"    title="后退"  disabled>&#8592;</button>
+      <button class="browser-nav-btn" id="brow-forward" onclick="browserForward()" title="前进"  disabled>&#8594;</button>
+      <button class="browser-nav-btn" id="brow-refresh" onclick="browserRefresh()" title="刷新">&#8635;</button>
+      <button class="browser-nav-btn" id="brow-home"    onclick="browserHome()"    title="主页">⌂</button>
+
+      <!-- 地址栏 -->
+      <div class="browser-address-bar">
+        <span class="browser-lock-icon" id="brow-lock">🔒</span>
+        <input class="browser-addr-input" id="brow-addr" type="text"
+          placeholder="输入网址，如 www.baidu.com"
+          value="www.google.com"
+          spellcheck="false"
+          onkeydown="if(event.key==='Enter')browserGo()" />
+      </div>
+
+      <button class="browser-go-btn" id="brow-go-btn" onclick="browserGo()">前往</button>
+    </div>
+
+    <!-- 书签栏 -->
+    <div class="browser-bookmarks">
+      <span style="font-size:11px;color:var(--text2);margin-right:4px;flex-shrink:0;">书签：</span>
+      <button class="browser-bookmark" onclick="browserNav('https://www.google.com')">🔍 Google</button>
+      <button class="browser-bookmark" onclick="browserNav('https://www.baidu.com')">百度</button>
+      <button class="browser-bookmark" onclick="browserNav('https://www.bing.com')">Bing</button>
+      <button class="browser-bookmark" onclick="browserNav('https://github.com')">GitHub</button>
+      <button class="browser-bookmark" onclick="browserNav('https://www.wikipedia.org')">维基百科</button>
+      <button class="browser-bookmark" onclick="browserNav('https://www.bilibili.com')">哔哩哔哩</button>
+      <button class="browser-bookmark" onclick="browserNav('https://news.ycombinator.com')">Hacker News</button>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="browser-status-bar">
+      <div class="browser-spinner" id="brow-spinner"></div>
+      <span id="brow-status">准备就绪</span>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="browser-content" id="brow-content">
+      <!-- 占位页 -->
+      <div class="browser-placeholder" id="brow-placeholder">
+        <div class="big-icon">🖥️</div>
+        <p>输入网址后点击「前往」<br>内容将在此处展示</p>
+        <p style="font-size:12px;opacity:0.4;">由服务端代理访问，不受跨域限制</p>
+      </div>
+
+      <!-- 错误页 -->
+      <div class="browser-error-box" id="brow-error">
+        <div class="browser-error-icon">⚠️</div>
+        <div class="browser-error-msg" id="brow-error-msg">加载失败</div>
+      </div>
+
+      <!-- 内容 iframe -->
+      <iframe class="browser-iframe" id="brow-iframe"
+        sandbox="allow-scripts allow-same-origin allow-forms"
+        style="display:none"></iframe>
+    </div>
+
   </div>
 </div>
 
@@ -1419,6 +1745,152 @@ function formatTime(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
+
+// ===== BUILT-IN BROWSER =====
+const _browHistory = [];
+let _browHistoryIdx = -1;
+let _browLoading = false;
+
+function openBrowser() {
+  document.getElementById('browser-modal').classList.add('show');
+  document.getElementById('brow-addr').focus();
+  document.getElementById('brow-addr').select();
+}
+
+function closeBrowser() {
+  document.getElementById('browser-modal').classList.remove('show');
+}
+
+function browserMinimize() {
+  // 无实际最小化，仅做视觉提示
+}
+
+function _browUpdateNav() {
+  document.getElementById('brow-back').disabled    = _browHistoryIdx <= 0;
+  document.getElementById('brow-forward').disabled = _browHistoryIdx >= _browHistory.length - 1;
+}
+
+function _browSetStatus(txt, loading = false) {
+  document.getElementById('brow-status').textContent = txt;
+  const sp = document.getElementById('brow-spinner');
+  loading ? sp.classList.add('running') : sp.classList.remove('running');
+}
+
+function _browShowError(msg) {
+  document.getElementById('brow-placeholder').style.display = 'none';
+  document.getElementById('brow-iframe').style.display = 'none';
+  const errBox = document.getElementById('brow-error');
+  document.getElementById('brow-error-msg').textContent = msg;
+  errBox.classList.add('show');
+}
+
+function _browShowIframe(html, finalUrl) {
+  document.getElementById('brow-placeholder').style.display = 'none';
+  document.getElementById('brow-error').classList.remove('show');
+  const iframe = document.getElementById('brow-iframe');
+  iframe.style.display = 'block';
+
+  // 写入 HTML
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  iframe.src = blobUrl;
+
+  // 更新地址栏
+  document.getElementById('brow-addr').value = finalUrl;
+  // 更新锁图标
+  const lock = document.getElementById('brow-lock');
+  if (finalUrl.startsWith('https://')) {
+    lock.textContent = '🔒';
+    lock.className = 'browser-lock-icon';
+  } else {
+    lock.textContent = '🔓';
+    lock.className = 'browser-lock-icon insecure';
+  }
+}
+
+async function _browLoad(url) {
+  if (_browLoading) return;
+  _browLoading = true;
+
+  const goBtn = document.getElementById('brow-go-btn');
+  goBtn.disabled = true;
+  _browSetStatus(`正在加载 ${url} ...`, true);
+
+  try {
+    const resp = await fetch(`${SERVER}/api/browse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+      _browShowIframe(data.html, data.finalUrl || url);
+      _browSetStatus(`✓ ${data.finalUrl || url}  (HTTP ${data.statusCode})`, false);
+    } else {
+      _browShowError(data.error || '加载失败');
+      _browSetStatus(`✗ 加载失败`, false);
+    }
+  } catch (e) {
+    _browShowError('网络错误：' + e.message);
+    _browSetStatus('✗ 请求失败', false);
+  } finally {
+    _browLoading = false;
+    goBtn.disabled = false;
+    _browUpdateNav();
+  }
+}
+
+function browserNav(url) {
+  // 截断前进历史
+  _browHistory.splice(_browHistoryIdx + 1);
+  _browHistory.push(url);
+  _browHistoryIdx = _browHistory.length - 1;
+  _browLoad(url);
+  document.getElementById('brow-addr').value = url;
+}
+
+function browserGo() {
+  let url = document.getElementById('brow-addr').value.trim();
+  if (!url) return;
+  // 如果像搜索词（不含点或冒号），用 Google 搜索
+  if (!/[.:]/.test(url) && !/^https?:\/\//i.test(url)) {
+    url = 'https://www.google.com/search?q=' + encodeURIComponent(url);
+  }
+  browserNav(url);
+}
+
+function browserBack() {
+  if (_browHistoryIdx <= 0) return;
+  _browHistoryIdx--;
+  const url = _browHistory[_browHistoryIdx];
+  document.getElementById('brow-addr').value = url;
+  _browLoad(url);
+}
+
+function browserForward() {
+  if (_browHistoryIdx >= _browHistory.length - 1) return;
+  _browHistoryIdx++;
+  const url = _browHistory[_browHistoryIdx];
+  document.getElementById('brow-addr').value = url;
+  _browLoad(url);
+}
+
+function browserRefresh() {
+  const url = document.getElementById('brow-addr').value.trim();
+  if (url && _browHistoryIdx >= 0) _browLoad(url);
+}
+
+function browserHome() {
+  browserNav('https://www.google.com');
+}
+
+// 接收 iframe 内的导航消息（页面内链接点击）
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'browse-navigate') {
+    browserNav(e.data.url);
+  }
+});
 
 // ===== PING =====
 function openPing() {

@@ -1,6 +1,8 @@
 const http = require('http');
+const https = require('https');
 const net = require('net');
 const dns = require('dns').promises;
+const { URL } = require('url');
 const WebSocket = require('ws');
 const express = require('express');
 const bcrypt = require('bcryptjs');
@@ -192,6 +194,185 @@ app.post('/api/ping', async (req, res) => {
   };
 
   res.json({ host, ip: resolvedIp, port, results, stats });
+});
+
+// ===== 内置浏览器代理接口 =====
+// POST /api/browse  { url }  → 服务端抓取目标页面，重写资源路径后返回 HTML
+app.post('/api/browse', async (req, res) => {
+  let { url: targetUrl } = req.body || {};
+  if (!targetUrl || typeof targetUrl !== 'string') {
+    return res.status(400).json({ error: '缺少 url 参数' });
+  }
+
+  // 补全协议
+  if (!/^https?:\/\//i.test(targetUrl)) {
+    targetUrl = 'https://' + targetUrl;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(targetUrl);
+  } catch {
+    return res.status(400).json({ error: '无效的 URL: ' + targetUrl });
+  }
+
+  // 只允许 http/https
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    return res.status(400).json({ error: '仅支持 http/https 协议' });
+  }
+
+  const fetchPage = (urlObj, redirectCount = 0) => new Promise((resolve, reject) => {
+    if (redirectCount > 5) return reject(new Error('重定向次数过多'));
+
+    const lib = urlObj.protocol === 'https:' ? https : http;
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+      path: urlObj.pathname + urlObj.search,
+      method: 'GET',
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'identity',
+        'Connection': 'close',
+      },
+    };
+
+    const reqObj = lib.request(options, (response) => {
+      // 跟随重定向
+      if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
+        const loc = response.headers['location'];
+        if (loc) {
+          try {
+            const nextUrl = new URL(loc, urlObj.href);
+            return fetchPage(nextUrl, redirectCount + 1).then(resolve).catch(reject);
+          } catch { return reject(new Error('重定向地址无效: ' + loc)); }
+        }
+      }
+
+      const ct = (response.headers['content-type'] || '').toLowerCase();
+      // 只处理文本/HTML，其他类型直接返回跳转提示
+      if (!ct.includes('text/html') && !ct.includes('text/plain') && !ct.includes('application/xhtml')) {
+        response.resume();
+        return resolve({ html: null, finalUrl: urlObj.href, contentType: ct, statusCode: response.statusCode });
+      }
+
+      const chunks = [];
+      response.on('data', c => chunks.push(c));
+      response.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        let html = buf.toString('utf8');
+        resolve({ html, finalUrl: urlObj.href, contentType: ct, statusCode: response.statusCode });
+      });
+    });
+
+    reqObj.on('timeout', () => { reqObj.destroy(); reject(new Error('请求超时（15s）')); });
+    reqObj.on('error', reject);
+    reqObj.end();
+  });
+
+  try {
+    const { html, finalUrl, contentType, statusCode } = await fetchPage(parsedUrl);
+
+    // 非HTML资源
+    if (html === null) {
+      return res.json({
+        ok: false,
+        error: `该地址返回的不是 HTML 页面（Content-Type: ${contentType}，状态码: ${statusCode}）`,
+        finalUrl,
+      });
+    }
+
+    // ===== 资源路径重写 =====
+    // 将页面内所有相对/协议相对路径的资源，重写为经过 /api/browse-res 的代理路径
+    const baseUrl = finalUrl;
+    const proxyBase = '/api/browse-res?base=' + encodeURIComponent(baseUrl) + '&url=';
+
+    const rewriteAttr = (html, tag, attr) => {
+      const re = new RegExp(`(<${tag}[^>]+${attr}=["'])([^"']+)(["'])`, 'gi');
+      return html.replace(re, (m, pre, val, quote) => {
+        if (/^(javascript:|data:|#|mailto:|tel:)/i.test(val)) return m;
+        try {
+          const abs = new URL(val, baseUrl).href;
+          return pre + proxyBase + encodeURIComponent(abs) + quote;
+        } catch { return m; }
+      });
+    };
+
+    let out = html;
+    // 注入 <base> 标签，确保相对链接正确
+    out = out.replace(/<head([^>]*)>/i, `<head$1><base href="${finalUrl}">`);
+    // 禁用页面内所有表单的跳转（由前端接管）
+    out = out.replace(/<form([^>]*)>/gi, '<form$1 onsubmit="return false;" data-proxy-form="1">');
+    // 注入点击劫持脚本，让 <a> 链接通过内置浏览器打开
+    const injectScript = `<script>
+(function(){
+  var BASE = ${JSON.stringify(finalUrl)};
+  document.addEventListener('click', function(e){
+    var a = e.target.closest('a');
+    if(!a) return;
+    var href = a.getAttribute('href');
+    if(!href || /^(javascript:|mailto:|tel:|#)/i.test(href)) return;
+    e.preventDefault();
+    try { var abs = new URL(href, BASE).href; } catch(ex){ return; }
+    window.parent.postMessage({type:'browse-navigate',url:abs},'*');
+  }, true);
+})();
+</script>`;
+    out = out.replace('</head>', injectScript + '</head>');
+
+    res.json({ ok: true, html: out, finalUrl, statusCode });
+  } catch (e) {
+    res.json({ ok: false, error: e.message, finalUrl: targetUrl });
+  }
+});
+
+// GET /api/browse-res  — 代理静态资源（图片、CSS、JS 等）
+app.get('/api/browse-res', async (req, res) => {
+  const { url: resourceUrl } = req.query;
+  if (!resourceUrl) return res.status(400).send('missing url');
+
+  let parsedUrl;
+  try { parsedUrl = new URL(resourceUrl); } catch { return res.status(400).send('invalid url'); }
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) return res.status(400).send('protocol not allowed');
+
+  const lib = parsedUrl.protocol === 'https:' ? https : http;
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+    path: parsedUrl.pathname + parsedUrl.search,
+    method: 'GET',
+    timeout: 10000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; ProxyBot/1.0)',
+      'Referer': parsedUrl.origin,
+    },
+  };
+
+  const proxyReq = lib.request(options, (proxyRes) => {
+    // 跟随重定向
+    if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode)) {
+      const loc = proxyRes.headers['location'];
+      if (loc) {
+        proxyRes.resume();
+        try {
+          const next = new URL(loc, resourceUrl).href;
+          return res.redirect('/api/browse-res?url=' + encodeURIComponent(next));
+        } catch { return res.status(400).send('redirect error'); }
+      }
+    }
+    const ct = proxyRes.headers['content-type'] || 'application/octet-stream';
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('timeout', () => { proxyReq.destroy(); res.status(504).send('timeout'); });
+  proxyReq.on('error', (e) => res.status(502).send('proxy error: ' + e.message));
+  proxyReq.end();
 });
 
 // 注册（兼容 /register 和 /api/register）
