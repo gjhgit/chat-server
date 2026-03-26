@@ -64,6 +64,12 @@ setInterval(saveDB, 30000);
 app.use(cors());
 app.use(express.json());
 
+// 网页版前端静态文件
+const PUBLIC_DIR = path.join(__dirname, 'public');
+if (fs.existsSync(PUBLIC_DIR)) {
+  app.use(express.static(PUBLIC_DIR));
+}
+
 // 图片上传目录（Railway Volume 持久化）
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(DATA_DIR, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -99,8 +105,8 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   res.json({ url });
 });
 
-// 健康检查
-app.get('/', (req, res) => {
+// 健康检查（前端由 express.static 托管，/ 路由仅作 API fallback）
+app.get('/api/status', (req, res) => {
   res.json({ status: 'ok', db: 'sqlite(sql.js)', time: new Date().toISOString() });
 });
 app.get('/health', (req, res) => {
