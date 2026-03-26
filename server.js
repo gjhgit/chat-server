@@ -1,4 +1,6 @@
 const http = require('http');
+const net = require('net');
+const dns = require('dns').promises;
 const WebSocket = require('ws');
 const express = require('express');
 const bcrypt = require('bcryptjs');
@@ -111,6 +113,85 @@ app.get('/api/status', (req, res) => {
 });
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// ===== PING 接口 =====
+// 通过 DNS 解析 + TCP 握手模拟 ping，返回延迟和多轮统计
+app.post('/api/ping', async (req, res) => {
+  let { host, count = 4, port = 80 } = req.body || {};
+  host = (host || 'www.google.com').trim().replace(/^https?:\/\//i, '').split('/')[0];
+  count = Math.max(1, Math.min(10, parseInt(count) || 4));
+  port = parseInt(port) || 80;
+
+  const results = [];
+  let resolvedIp = null;
+
+  // DNS 解析
+  const dnsStart = Date.now();
+  try {
+    const addrs = await dns.resolve4(host);
+    resolvedIp = addrs[0];
+  } catch (e) {
+    try {
+      const addrs6 = await dns.resolve6(host);
+      resolvedIp = addrs6[0];
+    } catch {
+      return res.json({
+        host, ip: null, port,
+        error: `DNS 解析失败: 无法找到主机 ${host}`,
+        results: [], stats: null
+      });
+    }
+  }
+  const dnsMs = Date.now() - dnsStart;
+
+  // 多轮 TCP 握手探测
+  for (let i = 0; i < count; i++) {
+    const start = Date.now();
+    const result = await new Promise((resolve) => {
+      const sock = new net.Socket();
+      sock.setTimeout(3000);
+      sock.connect(port, resolvedIp, () => {
+        const ms = Date.now() - start;
+        sock.destroy();
+        resolve({ seq: i + 1, ms, success: true });
+      });
+      sock.on('timeout', () => {
+        sock.destroy();
+        resolve({ seq: i + 1, ms: null, success: false, error: '超时' });
+      });
+      sock.on('error', (err) => {
+        sock.destroy();
+        // 连接被拒绝也算通（主机可达，端口关闭），用往返时间
+        if (err.code === 'ECONNREFUSED') {
+          resolve({ seq: i + 1, ms: Date.now() - start, success: true, note: '端口关闭但可达' });
+        } else {
+          resolve({ seq: i + 1, ms: null, success: false, error: err.message });
+        }
+      });
+    });
+    results.push(result);
+    // 每次探测间隔 200ms
+    if (i < count - 1) await new Promise(r => setTimeout(r, 200));
+  }
+
+  const times = results.filter(r => r.success && r.ms !== null).map(r => r.ms);
+  const lost = results.filter(r => !r.success).length;
+  const stats = times.length > 0 ? {
+    sent: count,
+    received: times.length,
+    lost,
+    lossRate: ((lost / count) * 100).toFixed(0) + '%',
+    minMs: Math.min(...times),
+    maxMs: Math.max(...times),
+    avgMs: (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1),
+    dnsMs,
+  } : {
+    sent: count, received: 0, lost: count,
+    lossRate: '100%', minMs: null, maxMs: null, avgMs: null, dnsMs,
+  };
+
+  res.json({ host, ip: resolvedIp, port, results, stats });
 });
 
 // 注册（兼容 /register 和 /api/register）

@@ -612,6 +612,186 @@
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ===== PING MODAL ===== */
+    #ping-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    #ping-modal.show { display: flex; }
+
+    .ping-dialog {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 28px 24px;
+      width: 480px;
+      max-width: 96vw;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .ping-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ping-header h2 {
+      font-size: 17px;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    .ping-header .close-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: var(--bg3);
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .ping-header .close-btn:hover { background: var(--red); color: #fff; }
+
+    .ping-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .ping-input-row input {
+      flex: 1;
+      padding: 10px 14px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: 'Menlo', 'Consolas', monospace;
+    }
+    .ping-input-row input:focus { border-color: var(--accent); }
+
+    .ping-input-row select {
+      padding: 10px 10px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .ping-run-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ping-run-btn:hover { opacity: 0.9; }
+    .ping-run-btn:active { transform: scale(0.97); }
+    .ping-run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .ping-result-box {
+      background: #0d0d12;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+      font-size: 12.5px;
+      line-height: 1.8;
+      color: #c0c0d0;
+      min-height: 120px;
+      max-height: 320px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .ping-result-box .line-ok   { color: #34c97e; }
+    .ping-result-box .line-fail { color: #f05c5c; }
+    .ping-result-box .line-info { color: #a78bfa; }
+    .ping-result-box .line-stat { color: #fbbf24; }
+    .ping-result-box .line-dim  { color: #5a5a72; }
+
+    .ping-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .ping-preset-btn {
+      padding: 4px 10px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text2);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ping-preset-btn:hover {
+      background: rgba(124,106,247,0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .ping-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text2);
+      min-height: 20px;
+    }
+
+    .ping-spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .ping-spinner.running { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ping 按钮放在 sidebar-header */
+    .ping-icon-btn {
+      background: none;
+      border: none;
+      color: var(--text2);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      font-size: 18px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .ping-icon-btn:hover { color: var(--accent); background: rgba(124,106,247,0.12); }
   </style>
 </head>
 <body>
@@ -672,6 +852,7 @@
         <div class="name" id="my-name">--</div>
         <div class="status">● 在线</div>
       </div>
+      <button class="ping-icon-btn" onclick="openPing()" title="网络 Ping 检测">🌐</button>
       <button class="logout-btn" onclick="doLogout()" title="退出登录">⏻</button>
     </div>
 
@@ -714,6 +895,51 @@
           onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
         <button class="send-btn" onclick="sendMessage()" title="发送">➤</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PING MODAL ===== -->
+<div id="ping-modal" onclick="if(event.target===this)closePing()">
+  <div class="ping-dialog">
+    <div class="ping-header">
+      <span style="font-size:20px">🌐</span>
+      <h2>网络 Ping 检测</h2>
+      <button class="close-btn" onclick="closePing()">✕</button>
+    </div>
+
+    <!-- 预设地址 -->
+    <div class="ping-presets">
+      <span style="font-size:12px;color:var(--text2);margin-right:2px;line-height:26px;">快选：</span>
+      <button class="ping-preset-btn" onclick="setPingHost('www.google.com')">Google</button>
+      <button class="ping-preset-btn" onclick="setPingHost('www.baidu.com')">百度</button>
+      <button class="ping-preset-btn" onclick="setPingHost('www.cloudflare.com')">Cloudflare</button>
+      <button class="ping-preset-btn" onclick="setPingHost('github.com')">GitHub</button>
+      <button class="ping-preset-btn" onclick="setPingHost('1.1.1.1')">1.1.1.1</button>
+      <button class="ping-preset-btn" onclick="setPingHost('8.8.8.8')">8.8.8.8</button>
+    </div>
+
+    <!-- 输入行 -->
+    <div class="ping-input-row">
+      <input type="text" id="ping-host" value="www.google.com" placeholder="域名或 IP 地址" spellcheck="false"
+        onkeydown="if(event.key==='Enter')doPing()" />
+      <select id="ping-count" title="次数">
+        <option value="4">4次</option>
+        <option value="6">6次</option>
+        <option value="10">10次</option>
+      </select>
+      <button class="ping-run-btn" id="ping-run-btn" onclick="doPing()">▶ Ping</button>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="ping-status-bar">
+      <div class="ping-spinner" id="ping-spinner"></div>
+      <span id="ping-status-text">准备就绪</span>
+    </div>
+
+    <!-- 结果框 -->
+    <div class="ping-result-box" id="ping-result">
+      <span class="line-dim">等待 Ping...</span>
     </div>
   </div>
 </div>
@@ -1192,6 +1418,112 @@ function formatDate(ts) {
 function formatTime(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ===== PING =====
+function openPing() {
+  document.getElementById('ping-modal').classList.add('show');
+  document.getElementById('ping-host').focus();
+  document.getElementById('ping-host').select();
+}
+
+function closePing() {
+  document.getElementById('ping-modal').classList.remove('show');
+}
+
+function setPingHost(host) {
+  document.getElementById('ping-host').value = host;
+  document.getElementById('ping-host').focus();
+}
+
+let _pingRunning = false;
+
+async function doPing() {
+  if (_pingRunning) return;
+  const host = document.getElementById('ping-host').value.trim();
+  if (!host) return;
+  const count = parseInt(document.getElementById('ping-count').value) || 4;
+
+  _pingRunning = true;
+  const runBtn = document.getElementById('ping-run-btn');
+  const spinner = document.getElementById('ping-spinner');
+  const statusEl = document.getElementById('ping-status-text');
+  const resultBox = document.getElementById('ping-result');
+
+  runBtn.disabled = true;
+  runBtn.textContent = '运行中...';
+  spinner.classList.add('running');
+  statusEl.textContent = `正在 Ping ${host}...`;
+  resultBox.innerHTML = `<span class="line-dim">正在解析 ${escHtml(host)}...</span>`;
+
+  try {
+    const resp = await fetch(`${SERVER}/api/ping`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, count })
+    });
+    const data = await resp.json();
+    renderPingResult(data);
+  } catch (e) {
+    resultBox.innerHTML = `<span class="line-fail">请求失败：${escHtml(e.message)}</span>`;
+    statusEl.textContent = '出错了';
+  } finally {
+    _pingRunning = false;
+    runBtn.disabled = false;
+    runBtn.textContent = '▶ Ping';
+    spinner.classList.remove('running');
+  }
+}
+
+function renderPingResult(data) {
+  const resultBox = document.getElementById('ping-result');
+  const statusEl = document.getElementById('ping-status-text');
+
+  if (data.error) {
+    resultBox.innerHTML = `<span class="line-fail">✗ ${escHtml(data.error)}</span>`;
+    statusEl.textContent = '解析失败';
+    return;
+  }
+
+  const lines = [];
+
+  // 头部
+  lines.push(`<span class="line-info">PING ${escHtml(data.host)} (${escHtml(data.ip)}) 端口 ${data.port}</span>`);
+  lines.push(`<span class="line-dim">DNS 解析耗时: ${data.stats.dnsMs} ms</span>`);
+  lines.push('');
+
+  // 每轮结果
+  data.results.forEach(r => {
+    if (r.success) {
+      const note = r.note ? ` <span class="line-dim">(${escHtml(r.note)})</span>` : '';
+      lines.push(`<span class="line-ok">第 ${r.seq} 次：来自 ${escHtml(data.ip)} 延迟 = ${r.ms} ms${note}</span>`);
+    } else {
+      lines.push(`<span class="line-fail">第 ${r.seq} 次：请求超时${r.error ? ' — ' + escHtml(r.error) : ''}</span>`);
+    }
+  });
+
+  // 统计摘要
+  const s = data.stats;
+  lines.push('');
+  lines.push(`<span class="line-stat">─── 统计 ───────────────────────────</span>`);
+  lines.push(`<span class="line-stat">  发送: ${s.sent}  接收: ${s.received}  丢包: ${s.lost} (${s.lossRate})</span>`);
+  if (s.received > 0) {
+    lines.push(`<span class="line-stat">  最小: ${s.minMs} ms  最大: ${s.maxMs} ms  平均: ${s.avgMs} ms</span>`);
+  }
+  lines.push(`<span class="line-stat">─────────────────────────────────────</span>`);
+
+  resultBox.innerHTML = lines.join('\n');
+  resultBox.scrollTop = resultBox.scrollHeight;
+
+  // 状态栏
+  const lossNum = parseInt(s.lossRate);
+  if (lossNum === 0) {
+    statusEl.textContent = `✓ ${data.host} 可达，平均 ${s.avgMs} ms`;
+  } else if (lossNum === 100) {
+    statusEl.textContent = `✗ ${data.host} 不可达 (100% 丢包)`;
+  } else {
+    statusEl.textContent = `⚠ ${data.host} 部分可达，丢包 ${s.lossRate}`;
+  }
 }
 
 // ===== INIT =====
