@@ -455,6 +455,39 @@ app.post('/api/browse', async (req, res) => {
   }
 });
 
+// GET /api/browse-frame  — 直接返回代理后的页面HTML（用于iframe src，解决CSP问题）
+app.get('/api/browse-frame', async (req, res) => {
+  const { url: targetUrl } = req.query;
+  if (!targetUrl) return res.status(400).send('missing url');
+
+  let parsedUrl;
+  try { parsedUrl = new URL(targetUrl); } catch { return res.status(400).send('invalid url'); }
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) return res.status(400).send('protocol not allowed');
+
+  const cacheKey = parsedUrl.href;
+  const cached = _cacheGet(cacheKey);
+  if (cached && cached.ok) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Cache', 'HIT');
+    return res.send(cached.html);
+  }
+
+  try {
+    const { html, finalUrl, contentType, statusCode } = await _fetchUrl(parsedUrl);
+    if (html === null) {
+      return res.status(400).send(`Not HTML: ${contentType}`);
+    }
+    const rewritten = _rewriteHtml(html, finalUrl);
+    // 缓存
+    _cacheSet(cacheKey, { ok: true, html: rewritten, finalUrl, statusCode });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Cache', 'MISS');
+    res.send(rewritten);
+  } catch (e) {
+    res.status(502).send('Error: ' + e.message);
+  }
+});
+
 // GET /api/browse-res  — 代理静态资源（图片、CSS、JS 等）
 app.get('/api/browse-res', async (req, res) => {
   const { url: resourceUrl } = req.query;

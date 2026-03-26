@@ -1227,7 +1227,7 @@
 
       <!-- 内容 iframe -->
       <iframe class="browser-iframe" id="brow-iframe"
-        sandbox="allow-scripts allow-same-origin allow-forms"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
         style="display:none"></iframe>
     </div>
 
@@ -1821,25 +1821,23 @@ function _browShowError(msg) {
   errBox.classList.add('show');
 }
 
-function _browShowIframe(html, finalUrl) {
+function _browShowIframe(frameUrl, finalUrl, meta) {
   document.getElementById('brow-placeholder').style.display = 'none';
   document.getElementById('brow-error').classList.remove('show');
   const iframe = document.getElementById('brow-iframe');
   iframe.style.display = 'block';
 
-  // 释放旧 Blob URL，避免内存泄漏
+  // 释放旧 Blob URL（兼容旧逻辑）
   if (_browCurrentBlobUrl) {
     URL.revokeObjectURL(_browCurrentBlobUrl);
     _browCurrentBlobUrl = null;
   }
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  _browCurrentBlobUrl = URL.createObjectURL(blob);
-  iframe.src = _browCurrentBlobUrl;
+  // 直接用代理帧 URL 作为 iframe.src（避免 Blob URL 的 CSP 限制）
+  iframe.src = frameUrl;
 
   // 更新地址栏
   document.getElementById('brow-addr').value = finalUrl;
-  // 更新锁图标
   const lock = document.getElementById('brow-lock');
   if (finalUrl.startsWith('https://')) {
     lock.textContent = '🔒'; lock.className = 'browser-lock-icon';
@@ -1854,28 +1852,39 @@ async function _browLoad(url) {
 
   const goBtn = document.getElementById('brow-go-btn');
   goBtn.textContent = '⏹ 停止';
-  goBtn.onclick = () => { _browLoading = false; _browProgressDone(); goBtn.textContent = '前往'; goBtn.onclick = browserGo; };
+  goBtn.onclick = () => {
+    _browLoading = false;
+    _browProgressDone();
+    // 停止 iframe 加载
+    const iframe = document.getElementById('brow-iframe');
+    iframe.src = 'about:blank';
+    goBtn.textContent = '前往'; goBtn.onclick = browserGo;
+  };
 
   _browProgressStart();
   _browSetStatus(`正在加载 ${url}...`, true);
-
   const startTime = Date.now();
 
   try {
+    // 用 POST /api/browse 拿 finalUrl（跟重定向）和状态码；同时给 /api/browse-frame 预热缓存
     const resp = await fetch(`${SERVER}/api/browse`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
     });
-    if (!_browLoading) return; // 用户点了停止
+    if (!_browLoading) return;
     const data = await resp.json();
     if (!_browLoading) return;
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
     if (data.ok) {
-      _browShowIframe(data.html, data.finalUrl || url);
+      // 用 GET /api/browse-frame?url=finalUrl 作为 iframe.src（同源，CSP 友好）
+      const finalUrl = data.finalUrl || url;
+      const frameUrl = `${SERVER}/api/browse-frame?url=${encodeURIComponent(finalUrl)}`;
+      _browShowIframe(frameUrl, finalUrl);
       const cacheHint = data.cached ? ' 〔缓存〕' : '';
-      _browSetStatus(`✓ ${data.finalUrl || url}  HTTP ${data.statusCode}  ${elapsed}s${cacheHint}`, false);
+      _browSetStatus(`✓ ${finalUrl}  HTTP ${data.statusCode}  ${elapsed}s${cacheHint}`, false);
     } else {
       _browShowError(data.error || '加载失败');
       _browSetStatus(`✗ 加载失败（${elapsed}s）`, false);
